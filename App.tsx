@@ -114,7 +114,7 @@ const TRANSLATIONS = {
     logoOpacity: "不透明度",
     uploadLogo: "上传 Logo",
     dragText: "拖拽文字或使用滑块调整位置",
-    dragLogo: "拖拽 Logo 或使用滑块调整位置",
+    dragLogo: "拖拽 Logo 移动，或使用右下角手柄缩放",
     dragMask: "拖拽消除框覆盖水印",
     settings: "设置",
     enhance: "增强/去水印",
@@ -141,7 +141,10 @@ const TRANSLATIONS = {
     modePixel: "马赛克",
     modeFill: "纯色",
     modeInpaint: "智能修复",
-    fillColor: "填充颜色"
+    fillColor: "填充颜色",
+    ratioLandscape: "横屏 (B站/YT)",
+    ratioPortrait: "竖屏 (抖音/TikTok)",
+    ratioSquare: "方形 (INS/头像)"
   },
   en: {
     appName: "Smart CoverCraft",
@@ -174,7 +177,7 @@ const TRANSLATIONS = {
     logoOpacity: "Opacity",
     uploadLogo: "Upload Logo",
     dragText: "Drag text or use sliders",
-    dragLogo: "Drag logo or use sliders",
+    dragLogo: "Drag to move, use handle to resize",
     dragMask: "Drag box to cover watermark",
     settings: "Settings",
     enhance: "Enhance/Removal",
@@ -201,7 +204,10 @@ const TRANSLATIONS = {
     modePixel: "Pixelate",
     modeFill: "Color",
     modeInpaint: "Smart Repair",
-    fillColor: "Fill Color"
+    fillColor: "Fill Color",
+    ratioLandscape: "Landscape (YT)",
+    ratioPortrait: "Portrait (TikTok)",
+    ratioSquare: "Square (INS)"
   }
 };
 
@@ -267,6 +273,7 @@ const App = () => {
 
   // Interaction State
   const [dragTarget, setDragTarget] = useState<'text' | 'logo' | 'mask' | null>(null);
+  const [interactionMode, setInteractionMode] = useState<'move' | 'resize'>('move');
   const previewRef = useRef<HTMLDivElement>(null);
 
   // --- Handlers ---
@@ -413,10 +420,11 @@ const App = () => {
   };
 
   // --- Interaction Logic ---
-  const handleMouseDown = (e: React.MouseEvent, target: 'text' | 'logo' | 'mask') => {
+  const handleMouseDown = (e: React.MouseEvent, target: 'text' | 'logo' | 'mask', mode: 'move' | 'resize' = 'move') => {
     e.preventDefault();
     e.stopPropagation();
     setDragTarget(target);
+    setInteractionMode(mode);
     if (target === 'text') setActiveTab('text');
     if (target === 'logo') setActiveTab('logo');
     if (target === 'mask') setActiveTab('mask');
@@ -428,23 +436,35 @@ const App = () => {
         if (!dragTarget || !previewRef.current) return;
 
         const rect = previewRef.current.getBoundingClientRect();
+        // Calculate raw percentage positions
         const x = ((e.clientX - rect.left) / rect.width) * 100;
         const y = ((e.clientY - rect.top) / rect.height) * 100;
 
         const clampedX = Math.max(0, Math.min(100, x));
         const clampedY = Math.max(0, Math.min(100, y));
 
-        if (dragTarget === 'text') {
-            setTextSettings(prev => ({ ...prev, positionX: clampedX, positionY: clampedY }));
-        } else if (dragTarget === 'logo') {
-            setLogoSettings(prev => ({ ...prev, positionX: clampedX, positionY: clampedY }));
-        } else if (dragTarget === 'mask') {
-            setMaskSettings(prev => ({ ...prev, x: clampedX, y: clampedY }));
+        if (interactionMode === 'move') {
+            if (dragTarget === 'text') {
+                setTextSettings(prev => ({ ...prev, positionX: clampedX, positionY: clampedY }));
+            } else if (dragTarget === 'logo') {
+                setLogoSettings(prev => ({ ...prev, positionX: clampedX, positionY: clampedY }));
+            } else if (dragTarget === 'mask') {
+                setMaskSettings(prev => ({ ...prev, x: clampedX, y: clampedY }));
+            }
+        } else if (interactionMode === 'resize') {
+            if (dragTarget === 'logo') {
+                // Calculate distance from center (positionX) to mouse (x) to determine size
+                const dx = Math.abs(x - logoSettings.positionX);
+                // Simple factor: 2x distance = width (since pos is center)
+                const newSize = Math.max(5, Math.min(100, dx * 2));
+                setLogoSettings(prev => ({ ...prev, size: newSize }));
+            }
         }
     };
 
     const handleGlobalMouseUp = () => {
         setDragTarget(null);
+        setInteractionMode('move'); // Reset to default
     };
 
     if (dragTarget) {
@@ -456,7 +476,7 @@ const App = () => {
         window.removeEventListener('mousemove', handleGlobalMouseMove);
         window.removeEventListener('mouseup', handleGlobalMouseUp);
     };
-  }, [dragTarget]);
+  }, [dragTarget, interactionMode, logoSettings.positionX]);
 
   // Logic to determine which image to display based on comparison state
   const getDisplayImage = () => {
@@ -719,10 +739,10 @@ const App = () => {
   };
 
   return (
-    <div className="fixed inset-0 w-full h-full bg-gradient-to-br from-sky-50 via-indigo-50 to-cyan-50 flex items-center justify-center p-2 sm:p-4 lg:p-6 font-sans text-slate-600">
+    <div className="min-h-screen w-full bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center p-4 sm:p-8 font-sans text-slate-600">
       
       {/* App Window - Boxed Layout */}
-      <div className="w-full max-w-[1600px] h-full lg:h-[95vh] bg-white rounded-3xl shadow-2xl shadow-sky-200/50 border border-white/50 flex flex-col overflow-hidden relative">
+      <div className="w-full max-w-[1400px] h-[85vh] min-h-[600px] bg-white rounded-3xl shadow-2xl border border-white/50 flex flex-col overflow-hidden relative ring-1 ring-slate-900/5">
         
         {/* Header - Now part of the box */}
         <header className="flex-none bg-white/50 backdrop-blur-sm border-b border-sky-100/50 z-20 h-14 px-6 flex items-center justify-between">
@@ -880,7 +900,7 @@ const App = () => {
                             <img 
                                 src={getDisplayImage() || ''} 
                                 alt="Preview" 
-                                className="relative z-10 block max-w-full max-h-full object-contain" 
+                                className="relative z-10 block max-w-full max-h-full object-contain pointer-events-none" 
                                 style={{ maxHeight: 'calc(100vh - 280px)' }}
                                 draggable={false} 
                             />
@@ -901,6 +921,8 @@ const App = () => {
                                      <div className="absolute top-1/2 left-1/2 w-2 h-2 bg-red-400 rounded-full -translate-x-1/2 -translate-y-1/2" />
                                  </div>
                             )}
+                            
+                            {/* Text Drag Handle (Simplified) */}
                             {previewSource === 'final' && activeTools.includes(ProcessingTool.ADD_TEXT) && (
                                  <div 
                                    className="absolute w-4 h-4 bg-white border-2 border-primary rounded-full shadow-md cursor-move z-20 hover:scale-125 transition-transform"
@@ -909,13 +931,41 @@ const App = () => {
                                    title={t.dragText}
                                  />
                             )}
+
+                            {/* Logo Drag & Resize Box */}
                             {previewSource === 'final' && activeTools.includes(ProcessingTool.ADD_LOGO) && logoSettings.data && (
                                  <div 
-                                   className="absolute w-4 h-4 bg-white border-2 border-secondary rounded-full shadow-md cursor-move z-20 hover:scale-125 transition-transform"
-                                   style={{ left: `calc(${logoSettings.positionX}% - 8px)`, top: `calc(${logoSettings.positionY}% - 8px)` }}
-                                   onMouseDown={(e) => handleMouseDown(e, 'logo')}
-                                   title={t.dragLogo}
-                                 />
+                                   className="absolute z-20 group"
+                                   style={{ 
+                                       left: `${logoSettings.positionX}%`, 
+                                       top: `${logoSettings.positionY}%`,
+                                       width: `${logoSettings.size}%`,
+                                       transform: 'translate(-50%, -50%)' 
+                                   }}
+                                 >
+                                     {/* Helper image to maintain aspect ratio and fill the div */}
+                                     <img 
+                                        src={logoSettings.data} 
+                                        className="w-full h-auto opacity-0 pointer-events-none block" 
+                                        alt="spacer" 
+                                     />
+                                     
+                                     {/* Visual Border */}
+                                     <div className="absolute inset-0 border border-dashed border-sky-400 group-hover:border-sky-500"></div>
+
+                                     {/* Move Area */}
+                                     <div 
+                                         className="absolute inset-0 cursor-move"
+                                         onMouseDown={(e) => handleMouseDown(e, 'logo', 'move')}
+                                         title={t.dragLogo}
+                                     />
+
+                                     {/* Resize Handle (Bottom Right) */}
+                                     <div 
+                                         className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border border-sky-500 rounded-full cursor-se-resize shadow-sm hover:scale-125 transition-transform"
+                                         onMouseDown={(e) => handleMouseDown(e, 'logo', 'resize')}
+                                     />
+                                 </div>
                             )}
                          </div>
                       ) : (
@@ -1000,7 +1050,7 @@ const App = () => {
                                   onClick={() => setAspectRatio(ratio)}
                                   className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-all whitespace-nowrap ${aspectRatio === ratio ? 'bg-white shadow-sm text-primary ring-1 ring-black/5' : 'text-ink-500 hover:text-ink-900'}`}
                                 >
-                                  {ratio}
+                                  {ratio === AspectRatio.LANDSCAPE ? t.ratioLandscape : ratio === AspectRatio.PORTRAIT ? t.ratioPortrait : t.ratioSquare}
                                 </button>
                               ))}
                            </div>
